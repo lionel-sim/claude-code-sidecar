@@ -1,7 +1,7 @@
-<h1 align="center">Claude Code Filetree</h1>
+<h1 align="center">Claude Code Sidecar</h1>
 
 <p align="center">
-  An IDE-style file tree for Claude Code that shows what Claude is doing and where in files
+  A sidebar for Claude Code with tabs for your files, with git status and a shimmer on what Claude touches, and your todo list
 </p>
 
 <p align="center">
@@ -12,7 +12,7 @@
 </p>
 
 <p align="center">
-  <img src="media/filetree-shimmer.gif" alt="filetree shimmering the file Claude is editing" width="900">
+  <img src="media/sidecar-shimmer.gif" alt="sidecar shimmering the file Claude is editing" width="900">
 </p>
 
 **Key features:**
@@ -26,7 +26,7 @@
 * Terminal-first features: File previews, directory size treemap, and more
 
 > [!NOTE]
-> filetree is a Claude Code **mod** and needs **Claude Code 2.1.306+**. It shows in the right sidebar, which in the terminal needs the fullscreen layout (`/tui fullscreen`) and a terminal at least 110 columns wide; the Desktop app docks it on its own. `/filetree` shows or hides it, also while Claude is working, and `/filetree open` opens it, or brings it forward from behind another tab, without hiding it. `/filetree keys` binds alt+l and alt+h to move the keyboard to and from the tree. Tested on Linux, macOS and Windows; mods don't load in WSL sessions of the Desktop app.
+> sidecar is a Claude Code **mod** and needs **Claude Code 2.1.306+**. It shows in the right sidebar, which in the terminal needs the fullscreen layout (`/tui fullscreen`) and a terminal at least 110 columns wide; the Desktop app docks it on its own. `/sidecar` shows or hides it, also while Claude is working, and `/sidecar open` opens it, or brings it forward from behind another tab, without hiding it. `/sidecar keys` binds alt+l and alt+h to move the keyboard to and from the tree. Tested on Linux, macOS and Windows; mods don't load in WSL sessions of the Desktop app.
 
 
 <p align="center">
@@ -40,22 +40,22 @@
 The repo is its own plugin marketplace. Run this in the terminal:
 
 ```bash
-claude plugin marketplace add data-goblin/claude-code-filetree
-claude plugin install filetree@claude-code-filetree
+claude plugin marketplace add lionel-sim/claude-code-sidecar
+claude plugin install sidecar@claude-code-sidecar
 ```
 
 Or inside a Claude Code session:
 
 ```text
-/plugin marketplace add data-goblin/claude-code-filetree
-/plugin install filetree@claude-code-filetree
+/plugin marketplace add lionel-sim/claude-code-sidecar
+/plugin install sidecar@claude-code-sidecar
 ```
 
 An install fails with `Unrecognized key: "options"` on Claude Code older than 2.1.287: run `claude update`, then install again.
 
 ## Features
 
-- File tree of the cwd, or of a folder pinned with `/filetree <path>`, with search across unopened folders, case-sensitive or by regular expression, scoped to one folder, with the matched characters highlighted in each result, and sortable Name, Git and value column headers
+- File tree of the cwd, or of a folder pinned with `/sidecar <path>`, with search across unopened folders, case-sensitive or by regular expression, scoped to one folder, with the matched characters highlighted in each result, and sortable Name, Git and value column headers
 - The contents toggle in the search row (`q` from the tree, or a click on it) searches inside files instead of names, with `git grep` in a repo and `grep -r` outside one; matches are grouped per file with line numbers, the first 200 are shown (fewer in the Desktop app when lines are long), and Enter or a click opens the file in the split preview at that line (the full preview in the Desktop app)
 - Git status per file and folder, line counts on changed files, and the branch with ahead/behind in the header (the upstream name with the `Remote branch` setting)
 - The collapse button closes every folder; when every folder is closed it becomes expand all, which opens up to three levels and at most 150 folders, skipping `.git`
@@ -76,7 +76,7 @@ An install fails with `Unrecognized key: "options"` on Claude Code older than 2.
 - `x` guards a file or folder: it draws a red x, and Claude's Edit, Write and NotebookEdit calls on it or anything under it are refused with a reason naming the guard. A Bash or PowerShell command whose text names a guarded path asks you first; that check reads only the command text, so it can miss a path the command builds itself. Guards are kept per repo in filetree's own store under your Claude configuration, never in the repo
 - When Claude or a subagent writes a file outside the repo (or outside the tree root when there is no repo) with Edit, Write or NotebookEdit, a warning badge with the count shows in the header and a toast says so the first time in a session; the badge or `w` lists those files. Writes from Bash are not counted, since a shell command's targets cannot be known for sure
 
-  <img src="media/filetree-git.gif" alt="A committed file shimmers green and the footer shows the commit" width="800">
+  <img src="media/sidecar-git.gif" alt="A committed file shimmers green and the footer shows the commit" width="800">
 
 ### Preview and treemap
 
@@ -134,11 +134,11 @@ Space:        Quick Look on macOS
 
 Resize the pane with the mouse or the `pane:grow` and `pane:shrink` keybindings.
 
-`/filetree keys` adds alt+l (keys from the prompt to the tree) and alt+h (keys back to the prompt) to your `keybindings.json` after asking. They work in the terminal only: the Desktop app does not read `keybindings.json`. It keeps your other bindings, asks before replacing one of yours on the same key (a Global alt+l counts too), keeps the file's indentation, and leaves a file it cannot parse or write untouched.
+`/sidecar keys` adds alt+l (keys from the prompt to the tree) and alt+h (keys back to the prompt) to your `keybindings.json` after asking. They work in the terminal only: the Desktop app does not read `keybindings.json`. It keeps your other bindings, asks before replacing one of yours on the same key (a Global alt+l counts too), keeps the file's indentation, and leaves a file it cannot parse or write untouched.
 
 ## Settings
 
-All settings are in `/config` under filetree, each with its own description there.
+All settings are in `/config` under sidecar, each with its own description there.
 
 ```yaml
 Claude activity:  reads and writes | writes | reads | none

@@ -74,7 +74,7 @@ export type Theme = {
 
 declare module 'claude-code' {
   interface PluginState {
-    filetree: {
+    sidecar: {
       tree: FileTree
       theme: Theme
       activity: Activity[]

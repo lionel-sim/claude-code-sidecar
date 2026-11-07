@@ -109,7 +109,7 @@ async function writeKeys($: EngineInterface, place: Place, text: string): Promis
     await $.fs.write(place.path, text)
     return undefined
   }
-  const tmp = `${place.path}.filetree-${Date.now()}.tmp`
+  const tmp = `${place.path}.sidecar-${Date.now()}.tmp`
   try {
     await $.fs.write(tmp, text)
     await $.process.run(['chmod', '--reference', place.path, tmp]).catch(() => undefined)
@@ -131,12 +131,12 @@ export async function bindKeys($: EngineInterface, home: string): Promise<string
   const text = (await $.fs.exists(path)) ? await $.fs.read(path).catch(() => null) : undefined
   if (text === null) return `Could not read ${path}; nothing changed.`
   const plan = planKeys(text)
-  if (plan.kind === 'invalid') return `${path} is ${plan.reason}; fix it and run /filetree keys again. Nothing changed.`
+  if (plan.kind === 'invalid') return `${path} is ${plan.reason}; fix it and run /sidecar keys again. Nothing changed.`
   if (plan.kind === 'done') return 'Already set: in the terminal, alt+l moves the keys to the file tree and alt+h (or Escape) gives them back. The Desktop app does not read keybindings.json; click the tree there.'
   const place = await placeKeys($, path)
   if ('refused' in place) return `Did not write: ${place.refused}. Nothing changed.`
   const adds = plan.add.map(w => `${w.context} ${w.key}`).join(', ')
-  const ask = async (q: string, o: string[]) => $.ui.ask(q, { header: 'filetree', options: o }).catch(() => '')
+  const ask = async (q: string, o: string[]) => $.ui.ask(q, { header: 'sidecar', options: o }).catch(() => '')
   let replace = false
   if (plan.clash.length > 0) {
     const clashes = plan.clash.map(w => `${w.where} ${w.spelled} is ${w.bound}`).join(', ')
@@ -148,7 +148,7 @@ export async function bindKeys($: EngineInterface, home: string): Promise<string
     if (pick !== ADD) return `Cancelled; nothing changed in ${path}.`
   }
   const now = (await $.fs.exists(path)) ? await $.fs.read(path).catch(() => null) : undefined
-  if (now !== text) return `${path} changed while you were asked; run /filetree keys again. Nothing changed.`
+  if (now !== text) return `${path} changed while you were asked; run /sidecar keys again. Nothing changed.`
   const refused = await writeKeys($, place, plan.merge(replace)).catch((err: unknown) => (err instanceof Error ? err.message : String(err)))
   if (refused) return `Did not write: ${refused}.`
   return `Wrote ${path}: alt+l moves the keys to the file tree, alt+h (or Escape) gives them back in the terminal; the Desktop app does not read keybindings.json. Claude Code picks the change up within about 3 seconds.`

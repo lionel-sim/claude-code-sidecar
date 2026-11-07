@@ -16,6 +16,7 @@ import { boxLook, fitPixels, inkOn, over, paint, type PixelLook, png, readable, 
 import { CELL_PROBE, colorOf, GHOSTTY_ARGS, parseGhostty, type TermColors } from './term'
 import type { ZoneProps } from './zone'
 import type { HitProps } from './hit'
+type TodoRow = { kind: 'head' | 'task' | 'empty' | 'link'; text: string; sel?: boolean; href?: string; hint?: string }
 import { type FileRef, fileRefs, markdownSplit, parseHref, refHref } from './refs'
 import { activityIcon, barSvg, lineSvg, selectionOn, DESK, DESK_GIT, DESK_GIT_TEXT, GAP_PX, iconSvg, type IconName, ink, lighten, nodeIcon, ROW_PX, rowSvg, STEP_PX, toolSvg } from './svg'
 import { ADD_COLOR, DEL_COLOR, type Palette, parsePalette } from './palette'
@@ -57,12 +58,14 @@ import {
 import { compileRegex, toEre } from './regex'
 import { SCROLL_KEYS, shortcutGroups, shortcutRows } from './keys'
 
-const TREE = { plugin: 'filetree', key: 'tree' } as const
-const ACTIVITY = { plugin: 'filetree', key: 'activity' } as const
-const VISITS = { plugin: 'filetree', key: 'visits' } as const
+const TREE = { plugin: 'sidecar', key: 'tree' } as const
+const ACTIVITY = { plugin: 'sidecar', key: 'activity' } as const
+const VISITS = { plugin: 'sidecar', key: 'visits' } as const
 const ZOXIDE_TTL_MS = 10_000
 const JUMP_INDEX_LIMIT = 4000
-const PANE = 'filetree'
+const PANE = 'sidecar'
+// Passed on every open as well as by the ui.open hook: the hook does not run for the open made at session start
+const CLEAR = { backgroundColor: 'transparent' } as {}
 const SHIMMER = Object.fromEntries(Object.entries(TONES).map(([k, v]) => [k, { bright: v.bright, dim: v.dim }]))
 const LIGHT_SHIMMER = Object.fromEntries(Object.entries(LIGHT_TONES).map(([k, v]) => [k, { bright: v.bright, dim: v.dim }]))
 const BRANCH_ROW = '#branch'
@@ -186,6 +189,7 @@ let searchIndex: { root: string; paths: Promise<Indexed> } | null = null
 let activityId = 0
 let pointer = true
 let hovered = ''
+let tab: 'files' | 'todo' = 'files'
 let view = { from: 0, max: 0 }
 let nativeScroll = false
 let lastSync = 0
@@ -552,8 +556,8 @@ async function reset($: EngineInterface, root: string, focus = false, ready?: Pr
   const listed = loadDirs($, [root])
   const repo = detectRepo($)
   await ready
-  if (focus) await $.ui.open({ id: PANE, title, focus: true })
-  else if (!noDock) await $.ui.open({ id: PANE, title })
+  if (focus) await $.ui.open({ ...CLEAR, id: PANE, title, focus: true })
+  else if (!noDock) await $.ui.open({ ...CLEAR, id: PANE, title })
   await listed
   await repo
   await refreshGit($)
@@ -640,7 +644,7 @@ async function sinceNow($: EngineInterface, writes: boolean): Promise<Since> {
   const ms = await $.clock.now()
   const os = await osName($)
   if (os !== 'darwin' || !writes) return { ms, mark: '', os }
-  const mark = `${((await $.env.get('TMPDIR')) || '/tmp').replace(/\/+$/, '')}/filetree-${await $.session.id()}-${++markId}.mark`
+  const mark = `${((await $.env.get('TMPDIR')) || '/tmp').replace(/\/+$/, '')}/sidecar-${await $.session.id()}-${++markId}.mark`
   try {
     await $.process.run(['touch', mark], { timeoutMs: 3_000 })
     return { ms, mark, os }
@@ -1289,7 +1293,7 @@ function linkNote(state: LinkState | null | undefined): string {
 
 function toggleMark($: EngineInterface, id: string): void {
   if (marks.includes(id)) marks = marks.filter(m => m !== id)
-  else if (marks.length >= MARK_LIMIT) $.ui.toast(`filetree: at most ${MARK_LIMIT} marks; V clears them`)
+  else if (marks.length >= MARK_LIMIT) $.ui.toast(`sidecar: at most ${MARK_LIMIT} marks; V clears them`)
   else marks = [...marks, id]
   void $.ui.invalidate('ui.render')
 }
@@ -1566,7 +1570,7 @@ async function search($: EngineInterface, query: string): Promise<string[]> {
   const scope = t.searchScope ? `${t.searchScope.replace(/\/$/, '')}/` : ''
   for (let i = 0; i < index.rel.length && hits.length < SEARCH_REVEAL_LIMIT; i++) if ((!scope || (index.paths[i] ?? '').startsWith(scope)) && match(index.rel[i] ?? '')) hits.push(index.paths[i] ?? '')
   if ((await get($)).query !== query) return []
-  if (match.partial) void $.ui.toast(`filetree: regex search stopped after ${hits.length} match${hits.length === 1 ? '' : 'es'}; the pattern is too slow to check every path`)
+  if (match.partial) void $.ui.toast(`sidecar: regex search stopped after ${hits.length} match${hits.length === 1 ? '' : 'es'}; the pattern is too slow to check every path`)
   await revealPaths($, hits)
   const shown = await get($)
   const ids = new Set(shown.nodes.map(n => n.id))
@@ -1773,7 +1777,7 @@ async function openRef($: EngineInterface, href: string, surface: RenderSurface)
   if (!ref) return
   const t = await get($)
   if (!inside(t.root, ref.path)) return
-  void $.ui.open({ id: PANE, title: `Files: ${t.root.split('/').pop() || t.root}` }).catch(() => undefined)
+  void $.ui.open({ ...CLEAR, id: PANE, title: `Files: ${t.root.split('/').pop() || t.root}` }).catch(() => undefined)
   await openHit($, { path: ref.path, line: ref.line, text: '' }, surface)
 }
 
@@ -2021,10 +2025,10 @@ async function considerWork($: EngineInterface): Promise<void> {
     $.clock.after(0, async () => {
       try {
         await $.command.run({ command: 'cd', args: repo })
-        void $.ui.toast(`filetree: followed the work to ${shortPath(repo)}`)
+        void $.ui.toast(`sidecar: followed the work to ${shortPath(repo)}`)
         $.clock.after(400, () => void (follow ? followCwd($) : reset($, repo)))
       } catch (error) {
-        void $.ui.toast(`filetree: could not move Claude to ${shortPath(repo)}: ${error instanceof Error ? error.message : String(error)}`)
+        void $.ui.toast(`sidecar: could not move Claude to ${shortPath(repo)}: ${error instanceof Error ? error.message : String(error)}`)
       }
     })
   } finally {
@@ -2042,7 +2046,7 @@ async function jumpTo($: EngineInterface, dir: string): Promise<void> {
     try {
       await $.command.run({ command: 'cd', args: dir })
     } catch (error) {
-      void $.ui.toast(`filetree: could not move Claude to ${dir}: ${error instanceof Error ? error.message : String(error)}`)
+      void $.ui.toast(`sidecar: could not move Claude to ${dir}: ${error instanceof Error ? error.message : String(error)}`)
     }
   })
 }
@@ -2549,8 +2553,124 @@ async function mapKey($: EngineInterface, key: string): Promise<boolean> {
 }
 
 function focusPane($: EngineInterface, root: string, key: string): void {
-  void $.ui.open({ id: PANE, title: `Files: ${root.split('/').pop() || root}`, focus: true }).then(() => (key ? $.ui.focus({ requestId: PANE, key }) : undefined)).catch(() => {})
+  void $.ui.open({ ...CLEAR, id: PANE, title: `Files: ${root.split('/').pop() || root}`, focus: true }).then(() => (key ? $.ui.focus({ requestId: PANE, key }) : undefined)).catch(() => {})
 }
+
+let todoSetting = ''
+function todoRoot(): string {
+  const dir = todoSetting.replace(/[\\/]+$/, '')
+  return dir === '~' || dir.startsWith('~/') ? `${home}${dir.slice(1)}` : dir
+}
+const STAGES = [{ dir: 'todo', label: 'To do' }, { dir: 'in-progress', label: 'In progress' }, { dir: 'done', label: 'Done' }] as const
+type TodoLink = { label: string; href: string }
+type TodoTask = { stage: number; name: string; path: string; id: string; links: TodoLink[] }
+let todoSel = ''
+let todoLink = -1
+// The Done column shows only the most recently modified tasks; the total is for its heading.
+const DONE_SHOWN = 3
+let todoDoneTotal = 0
+const todoOpen = new Set<string>()
+
+// Reads the bullets under a `## Links` heading: `- [label](url)`, `- <url>` or `- url`, up to the next heading.
+function parseLinks(text: string): TodoLink[] {
+  const body = text.replace(/^﻿?---[ \t]*\r?\n[\s\S]*?\r?\n---[ \t]*(?:\r?\n|$)/, '')
+  const out: TodoLink[] = []
+  let inside = false
+  for (const line of body.split(/\r?\n/)) {
+    const head = /^#{1,6}\s+(.*?)\s*#*\s*$/.exec(line)
+    if (head) {
+      inside = /^links?$/i.test(head[1]!)
+      continue
+    }
+    if (!inside) continue
+    const item = /^\s*[-*+]\s+(.+?)\s*$/.exec(line)
+    if (!item) continue
+    const md = /\[([^\]]*)\]\(\s*<?([^)\s>]+)>?[^)]*\)/.exec(item[1]!)
+    const bare = /<?(https?:\/\/[^\s>)]+)>?/.exec(item[1]!)
+    const href = md?.[2] ?? bare?.[1]
+    if (href && /^(https?|obsidian):\/\//i.test(href)) out.push({ href, label: md?.[1]?.trim() || href })
+  }
+  return out
+}
+
+async function loadTodo($: EngineInterface): Promise<TodoTask[]> {
+  const out: TodoTask[] = []
+  for (const [stage, s] of STAGES.entries()) {
+    const dir = `${todoRoot()}/${s.dir}`
+    const list = await $.fs.list(dir).catch(() => [])
+    let files = list.filter(f => f.kind === 'file' && f.name.endsWith('.md') && !f.name.startsWith('.')).sort((a, b) => a.name.localeCompare(b.name))
+    if (s.dir === 'done') {
+      todoDoneTotal = files.length
+      files = files.sort((a, b) => b.mtimeMs - a.mtimeMs).slice(0, DONE_SHOWN)
+    }
+    for (const f of files) {
+      const path = `${dir}/${f.name}`
+      const text = String(await $.fs.read(path).catch(() => ''))
+      out.push({ stage, name: f.name, path, id: `${s.dir}/${f.name}`, links: parseLinks(text) })
+    }
+  }
+  return out
+}
+
+function focusTodo($: EngineInterface, key: string): void {
+  $.clock.after(60, () => void get($).then(t => focusPane($, t.root, key)).catch(() => undefined))
+}
+
+async function todoKey($: EngineInterface, key: string): Promise<void> {
+  const tasks = await loadTodo($)
+  const i = tasks.findIndex(t => t.id === todoSel)
+  const cur = tasks[i]
+  const shown = (t: TodoTask | undefined) => (t && todoOpen.has(t.id) ? t.links.length : 0)
+  if (cur && todoLink >= shown(cur)) todoLink = -1
+  if (key === 'return' || key === 'enter') {
+    if (cur && todoLink >= 0) {
+      const url = cur.links[todoLink]?.href
+      if (url) {
+        const { argv, init } = openCommand(await osName($), url)
+        const opened = await $.process.run(argv, init).catch(() => undefined)
+        if (opened?.exitCode !== 0) void $.ui.toast('Could not open the link')
+      }
+    } else if (cur) {
+      if (todoOpen.has(cur.id)) todoOpen.delete(cur.id)
+      else if (cur.links.length) todoOpen.add(cur.id)
+      else void $.ui.toast('No links in this task. Add them under a "## Links" heading.')
+    }
+  } else if (key === 'down') {
+    if (cur && todoLink < shown(cur) - 1) todoLink++
+    else {
+      todoSel = tasks[Math.min(tasks.length - 1, i + 1)]?.id ?? ''
+      todoLink = -1
+    }
+  } else if (key === 'up') {
+    if (cur && todoLink >= 0) todoLink--
+    else {
+      const prev = tasks[Math.max(0, i - 1)]
+      todoSel = prev?.id ?? ''
+      todoLink = i > 0 ? shown(prev) - 1 : -1
+    }
+  } else if (key === 'left' && todoLink >= 0) todoLink = -1
+  else if ((key === 'right' || key === 'left') && i >= 0 && todoLink < 0) {
+    const task = tasks[i]!
+    const to = task.stage + (key === 'right' ? 1 : -1)
+    if (to >= 0 && to < STAGES.length) {
+      const dir = `${todoRoot()}/${STAGES[to]!.dir}`
+      const target = `${dir}/${task.name}`
+      if (await $.fs.exists(target)) void $.ui.toast(`"${task.name}" already exists in ${STAGES[to]!.label}`)
+      else {
+        await $.process.run(['mkdir', '-p', dir])
+        const moved = await $.process.run(['mv', '-n', task.path, target])
+        if (moved.exitCode === 0) {
+          todoSel = `${STAGES[to]!.dir}/${task.name}`
+          // A rename keeps the old modified time; touch it so a task just finished counts as the latest in Done.
+          if (STAGES[to]!.dir === 'done') await $.process.run(['touch', target])
+        }
+        else void $.ui.toast(`Could not move "${task.name}"`)
+      }
+    }
+  }
+  void $.ui.invalidate('ui.render')
+}
+
 
 function toggleShortcuts($: EngineInterface, open = !shortcutsShown): void {
   shortcutsShown = open
@@ -3069,6 +3189,7 @@ export const register: Register = (on, options) => {
   groupSetting = diffGroups(options?.groups)
   targetSetting = terminalTarget(options?.target)
   noDock = options?.start === 'off'
+  todoSetting = typeof options?.todo === 'string' ? options.todo.trim() : ''
   splitAt = options?.split === 'top' ? 'top' : 'bottom'
   jumpMovesClaude = options?.jump !== 'tree'
   on('session.start', async ($, e, next) => {
@@ -3078,8 +3199,8 @@ export const register: Register = (on, options) => {
     guardsLoaded = null
     void loadGuards($)
     cached ??= { ...emptyTree(''), ...(await $.state.get(TREE)).value }
-    await $.command.register({ name: 'filetree', description: 'Show or hide the file tree; args: [path | open | keys] (no path = cwd, open = never hide, keys = bind alt+l / alt+h to move the keys to and from the tree)', immediate: true })
-    if (palette.unknown.length) void $.ui.toast(`filetree palette: ignored ${palette.unknown.join(' ')}; use key=#hex with fg, bg, accent, muted, urgent, selection, hover, added, modified, renamed, add or del`)
+    await $.command.register({ name: 'sidecar', description: 'Show or hide the file tree; args: [path | open | keys] (no path = cwd, open = never hide, keys = bind alt+l / alt+h to move the keys to and from the tree)', immediate: true })
+    if (palette.unknown.length) void $.ui.toast(`sidecar palette: ignored ${palette.unknown.join(' ')}; use key=#hex with fg, bg, accent, muted, urgent, selection, hover, added, modified, renamed, add or del`)
     const windows = (await $.env.get('OS')) === 'Windows_NT'
     useDrives(windows)
     inTmux = !windows && Boolean(await $.env.get('TMUX'))
@@ -3110,7 +3231,7 @@ export const register: Register = (on, options) => {
       if (t.preview) await patch($, () => ({ preview: '', previewTop: 0 }))
       await setActivities($, cur => cur.map(a => (a.state === 'running' ? { ...a, state: 'failed', label: `${a.kind} interrupted` } : a)))
       const cwd = await cwdOf($)
-      const shown = !t.root || t.nodes.length === 0 || (follow && t.root !== cwd) ? reset($, cwd, false, ready) : ready.then(() => (noDock ? undefined : $.ui.open({ id: PANE, title: `Files: ${t.root.split('/').pop() || t.root}` })))
+      const shown = !t.root || t.nodes.length === 0 || (follow && t.root !== cwd) ? reset($, cwd, false, ready) : ready.then(() => (noDock ? undefined : $.ui.open({ ...CLEAR, id: PANE, title: `Files: ${t.root.split('/').pop() || t.root}` })))
       await ready
       ageTick?.cancel()
       ageTick = showAge ? $.clock.every(AGE_TICK_MS, () => $.ui.invalidate('ui.render')) : null
@@ -3128,7 +3249,7 @@ export const register: Register = (on, options) => {
     return result
   })
 
-  on('command.run', { command: 'filetree' }, async ($, e) => {
+  on('command.run', { command: 'sidecar' }, async ($, e) => {
     const given = (e.args ?? '').trim()
     if (given === 'keys') return { text: await bindKeys($, home) }
     const mine = given ? undefined : (await $.ui.panes().catch(() => [])).find(p => p.id === PANE)
@@ -3139,8 +3260,8 @@ export const register: Register = (on, options) => {
       return { text: 'File tree closed.' }
     }
     const terminal = await $.session.surfaces().then(s => s.includes('terminal'), () => true)
-    if (terminal && !e.presentation.isFullscreen) return { text: 'filetree shows in the sidebar, which needs the fullscreen layout. Run /tui fullscreen, then /filetree.' }
-    if (terminal && e.presentation.columns < 110) return { text: 'filetree shows in the sidebar, which needs a terminal at least 110 columns wide. Widen it, then run /filetree.' }
+    if (terminal && !e.presentation.isFullscreen) return { text: 'sidecar shows in the sidebar, which needs the fullscreen layout. Run /tui fullscreen, then /sidecar.' }
+    if (terminal && e.presentation.columns < 110) return { text: 'sidecar shows in the sidebar, which needs a terminal at least 110 columns wide. Widen it, then run /sidecar.' }
     noDock = false
     const arg = given === 'open' ? '' : given
     const cwd = await cwdOf($)
@@ -3461,10 +3582,12 @@ export const register: Register = (on, options) => {
     return (
       <Box flexDirection="column">
         {drawn}
-        <Markdown key="filetree-refs" dimColor text={`in the file tree: ${links.map(l => `[${l.label.replace(/[[\]]/g, '\\$&')}](${l.href})`).join('  ')}`} pressableLinks={links.map(l => l.href)} onLinkPress={(link, p) => void openRef($, link.href, p.surface)} />
+        <Markdown key="sidecar-refs" dimColor text={`in the file tree: ${links.map(l => `[${l.label.replace(/[[\]]/g, '\\$&')}](${l.href})`).join('  ')}`} pressableLinks={links.map(l => l.href)} onLinkPress={(link, p) => void openRef($, link.href, p.surface)} />
       </Box>
     )
   })
+
+  on('ui.open', { id: PANE }, ($, e, next) => next({ ...e, backgroundColor: 'transparent' }))
 
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e, next) => {
     if (e.surface !== 'terminal' && e.surface !== 'desktop') return next(e)
@@ -3495,6 +3618,73 @@ export const register: Register = (on, options) => {
     const addColor = palette.add ?? ADD_COLOR
     const delColor = palette.del ?? DEL_COLOR
     const warnColor = gitColors.M ?? 'ansi256(3)'
+    const pick = (target: 'files' | 'todo') => {
+      if (tab === target) return
+      tab = target
+      void $.ui.invalidate('ui.render')
+      focusTodo($, target === 'todo' ? 'hk-todo' : 'hk-tree')
+    }
+    const tabKeys = (
+      <Box key="tab-hotkeys" height={0} overflow="hidden" flexDirection="row">
+        <Button key="hk-tab-1" plain hotkey="1" label="1" onPress={() => pick('files')} />
+        <Button key="hk-tab-2" plain hotkey="2" label="2" onPress={() => pick('todo')} />
+      </Box>
+    )
+    const tabBar = (
+      <Box key="tabs" flexDirection="row" gap={2}>
+        {([['files', '🗂️'], ['todo', '📝']] as const).map(([id, label]) => (
+          <Button key={`tab-${id}`} plain label={label} onPress={() => pick(id)}>
+            {tab === id ? <Text bold underline color={theme.accent}>{label}</Text> : <Text dimColor>{label}</Text>}
+          </Button>
+        ))}
+      </Box>
+    )
+    if (tab === 'todo') {
+      const tasks = todoRoot() ? await loadTodo($) : []
+      if (!tasks.some(task => task.id === todoSel)) todoSel = tasks[0]?.id ?? ''
+      const rows: TodoRow[] = []
+      for (const [stage, s] of STAGES.entries()) {
+        const here = tasks.filter(task => task.stage === stage)
+        rows.push({ kind: 'head', text: `${s.label} (${s.dir === 'done' && todoDoneTotal > here.length ? `latest ${here.length} of ${todoDoneTotal}` : here.length})` })
+        if (here.length === 0) rows.push({ kind: 'empty', text: '-' })
+        for (const task of here) {
+          const open = todoOpen.has(task.id)
+          rows.push({ kind: 'task', text: task.name.replace(/\.md$/, ''), sel: task.id === todoSel && todoLink < 0, hint: task.links.length ? `${open ? '▾' : '▸'} 🔗${task.links.length}` : '' })
+          if (open) for (const [n, l] of task.links.entries()) rows.push({ kind: 'link', text: l.label, href: l.href, sel: task.id === todoSel && n === todoLink })
+        }
+      }
+      return (
+        <Box flexDirection="column" minHeight={Math.max(1, e.props.scroll?.bodyRows ?? 1)} backgroundColor={theme.bg || undefined}>
+          {tabBar}
+          {todoRoot() ? null : <Text key="todo-unset" dimColor wrap="wrap">{'Set Todo folder in /config to a folder with todo, in-progress and done subfolders.'}</Text>}
+          {rows.map((r, i) => r.kind === 'head' ? (
+            <Text key={`h${i}`} bold color={theme.accent}>{r.text}</Text>
+          ) : r.kind === 'empty' ? (
+            <Text key={`e${i}`} dimColor>{`  ${r.text}`}</Text>
+          ) : r.kind === 'link' ? (
+            <Text key={`l${i}`} wrap="truncate-end">
+              <Text color={theme.accent}>{r.sel ? '   ▸ ' : '     '}</Text>
+              <Text color="ansi256(75)" bold={r.sel} underline>{r.text}</Text>
+            </Text>
+          ) : r.sel ? (
+            <Text key={`t${i}`} bold color={theme.accent} wrap="truncate-end">{`▸ ${r.text}`}{r.hint ? <Text dimColor>{` ${r.hint}`}</Text> : null}</Text>
+          ) : (
+            <Text key={`t${i}`} wrap="truncate-end">{`  ${r.text}`}{r.hint ? <Text dimColor>{` ${r.hint}`}</Text> : null}</Text>
+          ))}
+          <Box flexGrow={1} />
+          <Text key="todo-help" dimColor wrap="truncate-end">{'j/k select  h/l move  ⏎ links/open  1 files'}</Text>
+          <Text key="bottom-gap"> </Text>
+          {tabKeys}
+          <Box key="todo-hotkeys" height={0} overflow="hidden" flexDirection="row">
+            <Button key="hk-todo" plain autoFocus label="todo" onPress={() => void todoKey($, 'return')} />
+            <Button key="hk-todo-j" plain hotkey="j" label="j" onPress={() => void todoKey($, 'down')} />
+            <Button key="hk-todo-k" plain hotkey="k" label="k" onPress={() => void todoKey($, 'up')} />
+            <Button key="hk-todo-h" plain hotkey="h" label="h" onPress={() => void todoKey($, 'left')} />
+            <Button key="hk-todo-l" plain hotkey="l" label="l" onPress={() => void todoKey($, 'right')} />
+          </Box>
+        </Box>
+      )
+    }
     await loadGuards($)
     const guarded = new Set(allGuards(guards))
     const deskDiff = (source: string, key: string) => {
@@ -3736,7 +3926,7 @@ export const register: Register = (on, options) => {
     if (grepping && grep.key !== grepKey(t)) grepRun($, t)
     const body = e.props.scroll?.bodyRows ?? 40
     const footer = t.nodes.find(n => n.id === t.cursor)?.id ?? (t.selected || '')
-    const chrome = 1 + (searchGap ? 2 : sortHeader ? 1 : 0) + 1 + (t.top ? (t.branch ? 1 : 0) : showHints ? 1 : 0) + (latest ? 1 : 0) + (!desk || footer || shortcutsSetting === 'auto' ? 1 : 0)
+    const chrome = 3 + (searchGap ? 2 : sortHeader ? 1 : 0) + 1 + (t.top ? (t.branch ? 1 : 0) : showHints ? 1 : 0) + (latest ? 1 : 0) + (!desk || footer || shortcutsSetting === 'auto' ? 1 : 0)
     const spare = body - chrome - 5
     const splitRows = t.split && !nativeScroll && spare >= 6 && (treemapSetting !== 'off' || Boolean(peekTarget(t))) ? Math.min(Math.max(6, Math.floor(body * 0.45)), spare) : 0
     splitShown = splitRows > 0
@@ -4460,6 +4650,7 @@ export const register: Register = (on, options) => {
 
     return (
       <Box flexDirection="column" minHeight={Math.max(1, e.props.scroll?.bodyRows ?? 1)} backgroundColor={theme.bg || undefined}>
+        {tabBar}
         {desk && Svg ? (
           <Box key="head" flexDirection="row" alignItems="center">
             <Box flexDirection="row" alignItems="center" flexShrink={1} overflow="hidden" position="relative" backgroundColor={t.cursor === t.root ? deskSel : undefined}>
@@ -4470,9 +4661,6 @@ export const register: Register = (on, options) => {
               </Box>
             </Box>
             <Box flexGrow={1} />
-            <Box flexDirection="row" alignItems="center" flexShrink={0}>
-              {toolButtons.map(button)}
-            </Box>
           </Box>
         ) : (
           <Box flexDirection="row">
@@ -4483,10 +4671,6 @@ export const register: Register = (on, options) => {
               </Button>
             </Box>
             <Box flexGrow={1} />
-            <Box flexDirection="row" gap={toolGap}>
-              {toolButtons.map(button)}
-              <Text> </Text>
-            </Box>
           </Box>
         )}
         {splitAt === 'top' ? split : null}
@@ -4600,6 +4784,8 @@ export const register: Register = (on, options) => {
             ) : null}
           </Box>
         )}
+        <Text key="bottom-gap"> </Text>
+        {zjump.on ? null : tabKeys}
         <Box key="hotkeys" height={0} overflow="hidden" flexDirection="row">
           <Button key="hk-tree" plain autoFocus label="o" onPress={() => void navigate($, 'return')} />
           {hidden.map(([k, act]) => <Button key={`hk-${k}`} plain hotkey={k} label={k} onPress={act} />)}

@@ -1,14 +1,14 @@
 {
-  "name": "claude-code-filetree",
+  "name": "claude-code-sidecar",
   "owner": {
     "name": "Kurt Buhler"
   },
   "metadata": {
-    "description": "An IDE-style file tree for Claude Code that shows what Claude is doing and where in files"
+    "description": "A sidebar for Claude Code with tabs for your files, with git status and a shimmer on what Claude touches, and your todo list"
   },
   "plugins": [
     {
-      "name": "filetree",
+      "name": "sidecar",
       "description": "File tree of the session cwd with git status, lines changed, shimmer on files Claude touches and its git activity",
       "source": "./"
     }

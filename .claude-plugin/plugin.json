@@ -1,12 +1,12 @@
 {
-  "name": "filetree",
+  "name": "sidecar",
   "version": "0.7.1",
-  "description": "An IDE-style file tree for Claude Code that shows what Claude is doing and where in files",
+  "description": "A sidebar for Claude Code with tabs for your files, with git status and a shimmer on what Claude touches, and your todo list",
   "types": "./types/index.d.ts",
   "author": {
     "name": "Kurt Buhler"
   },
-  "repository": "https://github.com/data-goblin/claude-code-filetree",
+  "repository": "https://github.com/lionel-sim/claude-code-sidecar",
   "keywords": [
     "file-tree",
     "git",
@@ -71,7 +71,7 @@
     "start": {
       "type": "string",
       "title": "Open at start",
-      "description": "on: the pane opens when a session starts. off: it stays closed until you run /filetree.",
+      "description": "on: the pane opens when a session starts. off: it stays closed until you run /sidecar.",
       "default": "on",
       "options": [
         "on",
@@ -81,7 +81,7 @@
     "focus": {
       "type": "string",
       "title": "Focus on open",
-      "description": "on: /filetree moves the keyboard into the tree when it opens it. off: the keyboard stays in the prompt, so the same command, or a key bound to it, hides the tree again; /filetree open, /filetree <path> and a tree hidden behind another tab still take the focus.",
+      "description": "on: /sidecar moves the keyboard into the tree when it opens it. off: the keyboard stays in the prompt, so the same command, or a key bound to it, hides the tree again; /sidecar open, /sidecar <path> and a tree hidden behind another tab still take the focus.",
       "default": "on",
       "options": [
         "on",
@@ -247,6 +247,12 @@
         "cells",
         "off"
       ]
+    },
+    "todo": {
+      "type": "string",
+      "title": "Todo folder",
+      "description": "The folder behind the todo tab. It holds todo, in-progress and done subfolders, and every task is a .md file in one of them; moving a task between tabs moves the file. A leading ~ is your home folder. Empty: the todo tab asks you to set it.",
+      "default": ""
     },
     "palette": {
       "type": "string",

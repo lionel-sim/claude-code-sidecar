@@ -26,7 +26,7 @@ export const POLICY = [
 export const POSTER = [
   'src=$1 base=$2 session=$3 name=$4 kind=$5 coder=$6 keep=$7 policy=$8 page=${9:-1} px=${10:-1200} pdfname=${11:-}',
   'private() { [ -L "$1" ] && { echo "cache folder $1 is a symbolic link" >&2; exit 1; }; mkdir -m 700 "$1" 2>/dev/null; [ -d "$1" ] && [ ! -L "$1" ] && [ -O "$1" ] || { echo "cache folder $1 is not ours" >&2; exit 1; }; chmod 700 "$1" || exit 1; }',
-  'top="$base/filetree-preview-$(id -u)"',
+  'top="$base/sidecar-preview-$(id -u)"',
   'private "$top"',
   'd="$top/$session"',
   'private "$d"',
