@@ -1,7 +1,7 @@
 {
   "name": "claude-code-sidecar",
   "owner": {
-    "name": "Kurt Buhler"
+    "name": "Lionel Sim"
   },
   "metadata": {
     "description": "A sidebar for Claude Code with tabs for your files, with git status and a shimmer on what Claude touches, and your todo list"

@@ -6,7 +6,7 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/Claude_Code-%E2%89%A5_2.1.306-D97757?logo=claude&logoColor=fff" alt="Claude Code 2.1.306 or newer">
-  <img src="https://img.shields.io/badge/version-0.7.1-blue" alt="Version">
+  <img src="https://img.shields.io/badge/version-0.1.0-blue" alt="Version">
   <img src="https://img.shields.io/badge/type-mod-6f42c1" alt="Claude Code mod">
   <img src="https://img.shields.io/badge/license-MIT-green" alt="License">
 </p>
@@ -24,6 +24,9 @@
    * Search with `s` or `i` (in highlighted folder) or `q` (in file contents)
    * Diff files with `d` or all changed files in a folder
 * Terminal-first features: File previews, directory size treemap, and more
+
+> [!NOTE]
+> sidecar is a fork of [data-goblin/claude-code-filetree](https://github.com/data-goblin/claude-code-filetree) by Kurt Buhler, with a todo tab added. It keeps its own version line, starting at 0.1.0.
 
 > [!NOTE]
 > sidecar is a Claude Code **mod** and needs **Claude Code 2.1.306+**. It shows in the right sidebar, which in the terminal needs the fullscreen layout (`/tui fullscreen`) and a terminal at least 110 columns wide; the Desktop app docks it on its own. `/sidecar` shows or hides it, also while Claude is working, and `/sidecar open` opens it, or brings it forward from behind another tab, without hiding it. `/sidecar keys` binds alt+l and alt+h to move the keyboard to and from the tree. Tested on Linux, macOS and Windows; mods don't load in WSL sessions of the Desktop app.
@@ -196,14 +199,9 @@ pictures:  Ghostty or kitty, outside tmux and herdr, on Linux and macOS
 
 ## Contributing
 
-Open pull requests against a release branch, not `main`:
+Open pull requests against `main`.
 
-- Fixes: the patch branch, such as `release/0.7.1`
-- Features: the minor branch, such as `release/0.8.0`
-
-Keep the version of that branch.
-
-Turn on the git hooks once per clone. The pre-commit hook runs the fast checks in seconds: grep rules, types, oxlint, and `claude plugin validate` when the manifests change. The pre-push hook checks the version against the release branch and runs the plugin tests:
+Turn on the git hooks once per clone. The pre-commit hook runs the fast checks in seconds: grep rules, types, oxlint, and `claude plugin validate` when the manifests change. The pre-push hook runs the plugin tests:
 
 ```bash
 git config core.hooksPath .githooks
